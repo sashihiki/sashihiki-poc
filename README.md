@@ -63,7 +63,7 @@ make down
 make clean
 ```
 
-http://localhost:3000 でアクセス
+`http://localhost:${FRONTEND_PORT}` でアクセス（デフォルト: 3000）
 
 ### ローカル開発
 
