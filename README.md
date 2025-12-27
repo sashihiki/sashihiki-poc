@@ -76,11 +76,13 @@ cp .env.example .env
 cp .env.local.example .env.local
 
 # DBのみ起動
-make build
-podman-compose up -d db
+make dev
 
 # 開発サーバーを起動
 pnpm dev
+
+# DB停止
+make dev-down
 ```
 
 ## オリジナルとの主な違い
