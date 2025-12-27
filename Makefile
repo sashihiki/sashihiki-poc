@@ -5,11 +5,11 @@ build:
 	podman build -t sashihiki-db ./db
 
 up: build
-	podman-compose up -d
+	podman compose up -d
 
 down:
-	podman-compose down
+	podman compose down
 
 clean:
-	podman-compose down
+	podman compose down
 	sudo rm -rf ./data/mysql
