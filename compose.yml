@@ -1,0 +1,37 @@
+services:
+  app:
+    image: sashihiki-app
+    container_name: sashihiki-app
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    image: sashihiki-db
+    container_name: sashihiki-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      TZ: ${TZ}
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysql", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}", "-e", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
