@@ -1,10 +1,11 @@
+# デプロイ用（フルスタック）
 services:
   app:
     image: sashihiki-app
     container_name: sashihiki-app
     environment:
       PORT: ${FRONTEND_PORT}
-      DB_HOST: ${DB_HOST}
+      DB_HOST: db
       DB_PORT: ${DB_PORT}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -25,13 +26,14 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_TCP_PORT: ${DB_PORT}
       TZ: ${TZ}
     ports:
-      - "${DB_PORT}:3306"
+      - "${DB_PORT}:${DB_PORT}"
     volumes:
       - ./data/mysql:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysql", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}", "-e", "SELECT 1"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-P", "${DB_PORT}", "-u", "${DB_USER}", "-p${DB_PASSWORD}", "--silent"]
       interval: 10s
       timeout: 5s
       retries: 10
