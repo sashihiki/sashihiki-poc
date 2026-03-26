@@ -6,43 +6,100 @@ import { createApiHandler } from '@/lib/apiHandler';
 
 const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const { user_guid } = req.query;
+    const { user_guid, status } = req.query;
+    const userGuid = typeof user_guid === 'string' ? user_guid : undefined;
 
-    let query = `
-      SELECT
-        e.guid,
-        u.guid AS user_guid,
-        e.name,
-        e.price,
-        e.note,
-        e.paid_at,
-        e.created_at,
-        e.updated_at,
-        (
-          SELECT JSON_ARRAYAGG(JSON_OBJECT('guid', m.guid, 'name', m.name))
-          FROM expense_matching_expenses eme
-          INNER JOIN expense_matchings m ON eme.expense_matching_id = m.id
-          WHERE eme.expense_id = e.id
-        ) AS linked_matchings
-      FROM expenses e
-      INNER JOIN users u ON e.user_id = u.id
-    `;
-    const params: string[] = [];
+    let expenses;
 
-    if (user_guid) {
-      query += ' WHERE u.guid = ?';
-      params.push(String(user_guid));
+    if (status === 'none') {
+      // 未精算: マッチングに紐づいていない支出
+      let query = `
+        SELECT
+          e.guid, u.guid AS user_guid, e.name, e.price, e.note,
+          e.paid_at, e.created_at, e.updated_at
+        FROM expenses e
+        INNER JOIN users u ON e.user_id = u.id
+        LEFT JOIN expense_matching_expenses eme ON eme.expense_id = e.id
+        WHERE eme.id IS NULL
+      `;
+      const params: string[] = [];
+      if (userGuid) {
+        query += ' AND u.guid = ?';
+        params.push(userGuid);
+      }
+      query += ' ORDER BY e.paid_at DESC';
+      const [rows] = await pool.query<RowDataPacket[]>(query, params);
+      expenses = rows.map((row) => ({ ...row, linked_matchings: [] }));
+
+    } else if (status === 'unsettled' || status === 'settled') {
+      // 精算中 / 精算済: 2クエリで取得
+      const idsQuery =
+        status === 'unsettled'
+          ? `SELECT DISTINCT eme.expense_id
+             FROM expense_matching_expenses eme
+             INNER JOIN expense_matchings m ON eme.expense_matching_id = m.id
+             WHERE eme.expense_id IS NOT NULL AND m.settled_at IS NULL`
+          : `SELECT eme.expense_id
+             FROM expense_matching_expenses eme
+             INNER JOIN expense_matchings m ON eme.expense_matching_id = m.id
+             WHERE eme.expense_id IS NOT NULL
+             GROUP BY eme.expense_id
+             HAVING COUNT(*) = COUNT(m.settled_at)`;
+
+      const [idRows] = await pool.query<RowDataPacket[]>(idsQuery);
+      const expenseIds = idRows.map((row) => row.expense_id);
+
+      if (expenseIds.length === 0) {
+        return res.status(200).json({ expenses: [] });
+      }
+
+      let query = `
+        SELECT
+          e.guid, u.guid AS user_guid, e.name, e.price, e.note,
+          e.paid_at, e.created_at, e.updated_at,
+          (
+            SELECT JSON_ARRAYAGG(JSON_OBJECT('guid', m.guid, 'name', m.name))
+            FROM expense_matching_expenses eme
+            INNER JOIN expense_matchings m ON eme.expense_matching_id = m.id
+            WHERE eme.expense_id = e.id
+          ) AS linked_matchings
+        FROM expenses e
+        INNER JOIN users u ON e.user_id = u.id
+        WHERE e.id IN (?)
+      `;
+      const params: (string | number[])[] = [expenseIds];
+      if (userGuid) {
+        query += ' AND u.guid = ?';
+        params.push(userGuid);
+      }
+      query += ' ORDER BY e.paid_at DESC';
+      const [rows] = await pool.query<RowDataPacket[]>(query, params);
+      expenses = rows.map((row) => ({ ...row, linked_matchings: row.linked_matchings || [] }));
+
+    } else {
+      // デフォルト: 全件取得（既存動作）
+      let query = `
+        SELECT
+          e.guid, u.guid AS user_guid, e.name, e.price, e.note,
+          e.paid_at, e.created_at, e.updated_at,
+          (
+            SELECT JSON_ARRAYAGG(JSON_OBJECT('guid', m.guid, 'name', m.name))
+            FROM expense_matching_expenses eme
+            INNER JOIN expense_matchings m ON eme.expense_matching_id = m.id
+            WHERE eme.expense_id = e.id
+          ) AS linked_matchings
+        FROM expenses e
+        INNER JOIN users u ON e.user_id = u.id
+      `;
+      const params: string[] = [];
+      if (userGuid) {
+        query += ' WHERE u.guid = ?';
+        params.push(userGuid);
+      }
+      query += ' ORDER BY e.paid_at DESC';
+      const [rows] = await pool.query<RowDataPacket[]>(query, params);
+      expenses = rows.map((row) => ({ ...row, linked_matchings: row.linked_matchings || [] }));
     }
-
-    query += ' ORDER BY e.paid_at DESC';
-
-    const [rows] = await pool.query<RowDataPacket[]>(query, params);
-
-    // Parse linked_matchings JSON and handle null
-    const expenses = rows.map((row) => ({
-      ...row,
-      linked_matchings: row.linked_matchings || [],
-    }));
 
     return res.status(200).json({ expenses });
   } catch (error) {

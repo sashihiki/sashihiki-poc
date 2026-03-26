@@ -1,15 +1,20 @@
-import { Container, Heading, VStack, Button, Box, Table, Text, HStack } from '@chakra-ui/react';
+import { Container, Heading, VStack, Button, Box, Table, Text, HStack, Tabs } from '@chakra-ui/react';
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
 import { useUserMap } from '@/features/users/hooks/useUserMap';
 import { useExpenses } from '@/features/expenses/hooks/useExpenses';
+import type { ExpenseStatus } from '@/features/expenses/types';
 import { PageLoading } from '@/components/PageLoading';
 import { PageError } from '@/components/PageError';
 import { formatDate, formatCurrency } from '@/lib/format';
 
+const isExpenseStatus = (value: string): value is ExpenseStatus =>
+  value === 'none' || value === 'unsettled' || value === 'settled';
+
 export default function ExpensesPage() {
   const { userMap, users, isLoading: isLoadingUsers, error: usersError } = useUserMap();
-  const { data: expenses, isLoading: isLoadingExpenses, error: expensesError } = useExpenses();
+  const [status, setStatus] = useState<ExpenseStatus>('none');
+  const { data: expenses, isLoading: isLoadingExpenses, error: expensesError } = useExpenses(status);
   const [selectedUserGuid, setSelectedUserGuid] = useState<string>('all');
 
   const loading = isLoadingUsers || isLoadingExpenses;
@@ -48,6 +53,19 @@ export default function ExpensesPage() {
             <Link href="/expenses/new">新規作成</Link>
           </Button>
         </HStack>
+
+        <Tabs.Root
+          value={status}
+          onValueChange={(e) => {
+            if (isExpenseStatus(e.value)) setStatus(e.value);
+          }}
+        >
+          <Tabs.List>
+            <Tabs.Trigger value="none">未精算</Tabs.Trigger>
+            <Tabs.Trigger value="unsettled">精算中</Tabs.Trigger>
+            <Tabs.Trigger value="settled">精算済</Tabs.Trigger>
+          </Tabs.List>
+        </Tabs.Root>
 
         <HStack gap="4">
           <Text fontWeight="medium">ユーザー絞り込み:</Text>

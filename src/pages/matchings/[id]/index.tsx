@@ -36,7 +36,11 @@ export default function MatchingDetailPage() {
   const matchingId = typeof id === 'string' ? id : undefined;
 
   const { userMap, users, isLoading: isLoadingUsers, error: usersError } = useUserMap();
-  const { data: allExpenses, isLoading: isLoadingExpenses, error: expensesError } = useExpenses();
+  const {
+    data: unlinkedExpenses,
+    isLoading: isLoadingExpenses,
+    error: expensesError,
+  } = useExpenses('none');
   const {
     data: matching,
     isLoading: isLoadingMatching,
@@ -68,19 +72,14 @@ export default function MatchingDetailPage() {
     }));
   }, [matching, userMap]);
 
-  // 利用可能な支出を計算（expense_guidでフィルタリング）
+  // 利用可能な支出（マッチング未登録のもののみ）
   const availableExpenses = useMemo(() => {
-    if (!allExpenses || !matching?.expenses) return [];
-    const matchingExpenseGuids = new Set(
-      matching.expenses.map((e) => e.expense_guid).filter((g): g is string => g !== null)
-    );
-    return allExpenses
-      .filter((e: Expense) => !matchingExpenseGuids.has(e.guid))
-      .map((e: Expense) => ({
-        ...e,
-        user_name: userMap.get(e.user_guid) || 'Unknown',
-      }));
-  }, [allExpenses, matching, userMap]);
+    if (!unlinkedExpenses) return [];
+    return unlinkedExpenses.map((e: Expense) => ({
+      ...e,
+      user_name: userMap.get(e.user_guid) || 'Unknown',
+    }));
+  }, [unlinkedExpenses, userMap]);
 
   const isSettled = matching?.settled_at !== null;
 

@@ -1,3 +1,9 @@
 import { createQueryKeys } from '@/lib/queryKeys';
 
-export const expenseKeys = createQueryKeys('expenses');
+const base = createQueryKeys('expenses');
+
+export const expenseKeys = {
+  all: base.all,
+  detail: base.detail,
+  list: (status?: string) => ['expenses', 'list', ...(status ? [status] : [])] as const,
+};

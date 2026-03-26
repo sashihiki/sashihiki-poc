@@ -37,3 +37,5 @@ export const expenseSchema = z.object({
 });
 
 export type Expense = z.infer<typeof expenseSchema>;
+
+export type ExpenseStatus = 'none' | 'unsettled' | 'settled';
